@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pink Flappy Bird 💗</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 22px 12px; background: #fff5fa; color: #e94f98; font-family: system-ui, sans-serif; }
+  .game { width: 100%; max-width: 440px; margin: auto; }
+  .header { display:flex; justify-content:space-between; align-items:center; padding: 0 4px 12px; gap: 12px; }
+  .title { font-size: 21px; font-weight: 900; }
+  .subtitle { color:#c77ba0; font-size:12px; }
+  .best { background:#ffe2f0; border-radius:14px; padding:7px 13px; text-align:center; flex-shrink:0; }
+  .best small { display:block; font-size:10px; color:#b85b8c; font-weight:800; }
+  .best strong { font-size:21px; }
+  canvas { width:100%; display:block; aspect-ratio:360/520; border-radius:22px; border:3px solid #ffb8d8; box-shadow:0 5px 18px #f5a6ca55; touch-action:manipulation; cursor:pointer; }
+  .controls { display:flex; justify-content:center; align-items:center; gap:20px; padding-top:14px; }
+  button { border:0; border-radius:999px; background:#ff68ad; color:white; padding:11px 24px; font-weight:800; font-size:15px; box-shadow:0 4px 0 #db4389; cursor:pointer; }
+  button:active { transform:translateY(2px); box-shadow:0 2px 0 #db4389; }
+  .scorebox { text-align:center; }
+  .scorebox small { display:block; font-size:10px; color:#b85b8c; font-weight:800; }
+  .scorebox strong { font-size:24px; }
+  #message { text-align:center; background:#fff0f7; border:1px solid #ffc8e1; border-radius:14px; padding:10px; margin-top:12px; color:#d94b91; font-size:14px; font-weight:800; }
+  .tip { font-size:12px; color:#bd6090; text-align:center; padding-top:10px; }
+</style>
+</head>
+<body>
+<main class="game">
+  <div class="header">
+    <div><div class="title">♡ Pink Flappy ♡</div><div class="subtitle">You can do this, superstar! ✨</div></div>
+    <div class="best"><small>PERSONAL BEST</small><strong id="best">0</strong></div>
+  </div>
+  <canvas id="game" width="360" height="520" tabindex="0" role="button" aria-label="Pink Flappy Bird. Tap or press Space to flap."></canvas>
+  <div class="controls">
+    <button id="play">▶ Play game!</button>
+    <div class="scorebox"><small>YOUR SCORE</small><strong id="score">0</strong></div>
+  </div>
+  <div id="message" aria-live="polite">🌸 You're capable of amazing things!</div>
+  <div class="tip">Tap or click to fly · Press SPACE to flap · Pass a pipe to earn a point and a pep talk 💕</div>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const messageEl = document.getElementById('message');
+  const playBtn = document.getElementById('play');
+  const W = 360, H = 520, ground = 470;
+  const cheers = [
+    '💖 YESSS! You did that!',
+    '✨ Look at you go, superstar!',
+    '🎀 One step at a time!',
+    '🌸 You are absolutely smashing it!',
+    '💗 Believe in yourself!',
+    '⭐ That was AMAZING!',
+    '🦋 Keep shining, beautiful!',
+    '💕 Look how far you’ve come!',
+    '🌷 You are stronger than you think!',
+    '💫 You’ve got this!',
+    '👑 Main character energy!',
+    '🩷 Progress is progress!',
+    '🌈 Keep going, you’re doing great!',
+    '💐 Every little win counts!',
+    '✨ YOU ARE THAT GIRL!'
+  ];
+  let mode = 'ready', bird, pipes = [], score = 0, best = 0, frame = 0;
+  let toast = '', toastTime = 0;
+  const clouds = Array.from({length:6}, (_,i) => ({x:(i*83+13)%360,y:45+(i*67)%260,s:.65+(i%3)*.25}));
+  const stars = Array.from({length:32}, (_,i) => ({x:(i*47+19)%360,y:(i*71+13)%450,r:1+(i%3)*.5}));
+
+  function rounded(a,b,w,h,r,color) {
+    ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(a,b,w,h,r); ctx.fill();
+  }
+  function say(text) { messageEl.textContent = text; }
+  function reset() {
+    bird = {x:95,y:230,vy:0};
+    pipes = []; score = 0; frame = 0; toast = ''; toastTime = 0;
+    scoreEl.textContent = '0';
+    for (let i=0;i<3;i++) addPipe(390+i*190);
+    mode = 'playing'; playBtn.textContent = '↻ Restart';
+    say('💕 You’ve got this! Believe in yourself!');
+  }
+  function addPipe(px) { pipes.push({x:px,top:100+Math.random()*185,gap:155,passed:false}); }
+  function drawCloud(a) {
+    ctx.fillStyle='rgba(255,255,255,.83)'; ctx.beginPath();
+    ctx.arc(a.x,a.y,13*a.s,0,Math.PI*2);
+    ctx.arc(a.x+14*a.s,a.y-7*a.s,17*a.s,0,Math.PI*2);
+    ctx.arc(a.x+31*a.s,a.y,12*a.s,0,Math.PI*2); ctx.fill();
+  }
+  function background() {
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#bcefff'); g.addColorStop(.7,'#f9e6fa'); g.addColorStop(1,'#ffd8e9');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(286,83,30,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff4bb'; ctx.beginPath(); ctx.arc(286,83,23,0,Math.PI*2); ctx.fill();
+    clouds.forEach(drawCloud);
+    stars.forEach(a=>{ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();});
+    ctx.fillStyle='#f9c6e0'; ctx.beginPath(); ctx.moveTo(0,425);
+    ctx.quadraticCurveTo(70,375,145,426); ctx.quadraticCurveTo(240,365,360,418);
+    ctx.lineTo(360,ground);ctx.lineTo(0,ground);ctx.fill();
+    ctx.fillStyle='#d8f4c5';ctx.fillRect(0,ground,W,H-ground);
+    ctx.fillStyle='#b4e69c';ctx.fillRect(0,ground,W,8);
+    for(let a=0;a<W;a+=22){ctx.fillStyle='#fff0f7';ctx.fillRect((a-frame*1.3%22+22)%W,ground+12,10,4);}
+  }
+  function drawPipe(p) {
+    const bottom=p.top+p.gap, g=ctx.createLinearGradient(p.x,0,p.x+49,0);
+    g.addColorStop(0,'#ffacd1');g.addColorStop(.45,'#ffcee4');g.addColorStop(1,'#f47eb7');
+    ctx.fillStyle=g;ctx.fillRect(p.x,0,42,p.top-1);rounded(p.x-5,p.top-22,52,22,5,'#ff83bc');
+    ctx.fillStyle=g;ctx.fillRect(p.x,bottom+23,42,ground-bottom-23);rounded(p.x-5,bottom,52,23,5,'#ff83bc');
+    ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=3;ctx.beginPath();
+    ctx.moveTo(p.x+9,0);ctx.lineTo(p.x+9,p.top-24);ctx.moveTo(p.x+9,bottom+25);ctx.lineTo(p.x+9,ground);ctx.stroke();
+    ctx.fillStyle='#fff0f7';ctx.font='13px sans-serif';ctx.fillText('♡',p.x+14,p.top-5);ctx.fillText('♡',p.x+14,bottom+18);
+  }
+  function drawBird() {
+    ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(Math.max(-.38,Math.min(.75,bird.vy*.055)));
+    ctx.fillStyle='#ff80b8';ctx.beginPath();ctx.ellipse(0,0,20,17,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffadd1';ctx.beginPath();ctx.ellipse(-5,6,10,7,-.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff6ba8';ctx.beginPath();ctx.moveTo(-11,-11);ctx.lineTo(-18,-24);ctx.lineTo(-2,-17);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(10,-5,7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#63324f';ctx.beginPath();ctx.arc(12,-5,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffb342';ctx.beginPath();ctx.moveTo(18,1);ctx.lineTo(29,5);ctx.lineTo(18,9);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#ffd2e6';ctx.beginPath();ctx.ellipse(-5,2,8,5,Math.sin(frame*.3)*.4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff8ebd';ctx.beginPath();ctx.arc(5,4,3,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  function hit(p) {
+    return bird.y-13<0 || bird.y+13>ground ||
+      (bird.x+14>p.x && bird.x-14<p.x+42 && (bird.y-12<p.top || bird.y+12>p.top+p.gap));
+  }
+  function overlay(title,sub) {
+    rounded(22,177,316,135,22,'rgba(255,255,255,.83)');
+    ctx.textAlign='center';ctx.fillStyle='#e94f98';ctx.font='900 26px system-ui';ctx.fillText(title,180,220);
+    ctx.fillStyle='#a85b87';ctx.font='14px system-ui';ctx.fillText(sub,180,250);
+    ctx.fillStyle='#d95b9a';ctx.font='13px system-ui';ctx.fillText('♡  You can always try again!  ♡',180,278);
+    ctx.textAlign='start';
+  }
+  function flap() {
+    if(mode==='ready'||mode==='over'){reset();bird.vy=-6.3;return;}
+    bird.vy=-6.3;
+  }
+  function tick() {
+    frame++;background();
+    if(mode==='playing') {
+      bird.vy+=.38;bird.y+=bird.vy;
+      pipes.forEach(p=>{
+        p.x-=2.15;
+        if(!p.passed && p.x+42<bird.x) {
+          p.passed=true;score++;scoreEl.textContent=score;best=Math.max(best,score);bestEl.textContent=best;
+          toast=cheers[(score-1)%cheers.length];toastTime=100;
+          say(toast+' Score: '+score+'! Keep going! 🎉');
+        }
+      });
+      if(pipes.length&&pipes[0].x<-55){pipes.shift();addPipe(pipes[pipes.length-1].x+190);}
+      for(const p of pipes){drawPipe(p);if(hit(p)){mode='over';playBtn.textContent='↻ Try again';say('💗 You tried, and that counts! Your score was '+score+'. Ready for another go?');}}
+    } else if(mode==='ready') {bird.y=230+Math.sin(frame*.075)*7;bird.vy=0;}
+    else if(mode==='over') {pipes.forEach(drawPipe);}
+    drawBird();
+    if(mode==='ready')overlay('Pink Flappy ♡','Tap to start your adventure!');
+    if(mode==='over')overlay('You did your best! 💗','You scored '+score+'! Try again?');
+    if(mode==='playing') {
+      ctx.textAlign='center';ctx.font='900 32px system-ui';ctx.lineWidth=4;ctx.strokeStyle='rgba(255,255,255,.85)';
+      ctx.strokeText(score,180,52);ctx.fillStyle='#e94f98';ctx.fillText(score,180,52);ctx.textAlign='start';
+      if(toastTime>0) {
+        ctx.save();ctx.globalAlpha=Math.min(1,toastTime/15);rounded(35,76,290,42,18,'rgba(255,255,255,.91)');
+        ctx.fillStyle='#d94491';ctx.font='bold 15px system-ui';ctx.textAlign='center';ctx.fillText(toast,180,102);
+        ctx.textAlign='start';ctx.restore();toastTime--;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  canvas.addEventListener('pointerdown',e=>{e.preventDefault();flap();});
+  canvas.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();flap();}});
+  document.addEventListener('keydown',e=>{
+    if((e.code==='Space'||e.code==='ArrowUp')&&!e.repeat) {
+      const active=document.activeElement;
+      if(active===canvas || active===document.body || active===document.documentElement) {e.preventDefault();flap();}
+    }
+  });
+  playBtn.addEventListener('click',()=>{if(mode==='playing')reset();else{reset();bird.vy=-6.3;}canvas.focus({preventScroll:true});});
+  bird={x:95,y:230,vy:0};tick();
+})();
+</script>
+</body>
+</html>
